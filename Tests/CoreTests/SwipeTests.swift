@@ -111,4 +111,43 @@ final class SwipeTests: XCTestCase {
         engine.type("water "); engine.insertSwipe(["tank", "task"]); engine.accept("task")
         XCTAssertEqual(learned.count, 0)
     }
+    func testTappedAFlowsIntoNextSwipeWithoutChoosingSuggestion() {
+        engine.type("This is "); engine.type("a")
+        XCTAssertTrue(engine.canInsertSwipe)
+        XCTAssertTrue(engine.insertSwipe(["cute", "cut"]))
+        XCTAssertEqual(doc.text, "This is a cute ")
+    }
+    func testTapSwipeAlternativeAndUndoPreserveLeadingSpace() {
+        engine.type("a"); engine.insertSwipe(["cute", "cut"])
+        XCTAssertTrue(engine.accept("cut")); XCTAssertEqual(doc.text, "a cut ")
+        engine.backspace(); XCTAssertEqual(doc.text, "a")
+        XCTAssertTrue(engine.canInsertSwipe)
+        XCTAssertTrue(engine.insertSwipe(["cute"])); XCTAssertEqual(doc.text, "a cute ")
+    }
+    func testTappedIAndKnownWordCanStartNextSwipe() {
+        engine.type("I"); XCTAssertTrue(engine.insertSwipe(["am"]))
+        XCTAssertEqual(doc.text, "I am ")
+        engine = InputController(document: doc, candidates: CandidateService(lexicons:
+            [FrequencyLexicon(entries: ["water": 100])]), settings: settings)
+        engine.type("water"); XCTAssertTrue(engine.insertSwipe(["tank"]))
+        XCTAssertEqual(doc.text, "I am water tank ")
+    }
+    func testExistingWordAndUnfinishedPrefixAreNotAutoSeparated() {
+        doc.text = "a"; engine.refresh(); XCTAssertFalse(engine.canInsertSwipe)
+        doc.text = ""; engine.refresh(); engine.type("hel")
+        XCTAssertFalse(engine.canInsertSwipe)
+        doc.text = ""; engine.refresh(); engine.type("a")
+        doc.text = "elsewhere"; engine.refresh(); doc.text = "a"; engine.refresh()
+        XCTAssertFalse(engine.canInsertSwipe)
+    }
+    func testFailedSwipeDoesNotAddSpaceAndTapsCanContinueWord() {
+        engine.type("a"); XCTAssertFalse(engine.insertSwipe([])); XCTAssertEqual(doc.text, "a")
+        engine.type("n"); XCTAssertEqual(doc.text, "an")
+    }
+    func testExplicitSpaceDoesNotAddSecondSeparator() {
+        engine.type("a"); engine.type(" "); engine.insertSwipe(["cute"])
+        XCTAssertEqual(doc.text, "a cute ")
+        engine.type("."); XCTAssertEqual(doc.text, "a cute.")
+    }
+
 }

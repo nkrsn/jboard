@@ -22,14 +22,22 @@ public final class InputController {
     private var touchAfter: String?
     private struct SwipeReplacement {
         var inserted: String
+        var leadingSeparator: String
         var before: String?
         var after: String?
         var choices: [String]
     }
     private var swipeReplacement: SwipeReplacement?
-    public func clearSwipeReplacement() { swipeReplacement = nil }
+    private var tappedEndContext: (before: String?, after: String?)?
+    public func clearSwipeReplacement() { swipeReplacement = nil; tappedEndContext = nil }
+    public var needsSwipeSeparator: Bool {
+        guard let context = tappedEndContext, document.beforeInput == context.before,
+              document.afterInput == context.after, document.selection?.isEmpty != false else { return false }
+        let word = normalizedWord(currentWord)
+        return word == "a" || word == "i" || candidateService.isKnownWord(word)
+    }
     public var canInsertSwipe: Bool {
-        document.beforeInput != nil && document.selection?.isEmpty != false && currentWord.isEmpty &&
+        document.beforeInput != nil && document.selection?.isEmpty != false && (currentWord.isEmpty || needsSwipeSeparator) &&
             document.beforeInput?.last?.isNumber != true &&
             document.afterInput?.first.map(Self.isWordCharacter) != true
     }
@@ -42,10 +50,12 @@ public final class InputController {
             }
         guard let best = choices.first else { return false }
         resetLearningSession(); resetTouchCalibrationSession()
-        let inserted = best + ((document.afterInput ?? "").isEmpty ? " " : "")
+        let separator = needsSwipeSeparator ? " " : ""
+        let inserted = separator + best + ((document.afterInput ?? "").isEmpty ? " " : "")
+        tappedEndContext = nil
         document.insertText(inserted)
         if shift == .once { shift = .off }
-        swipeReplacement = SwipeReplacement(inserted: inserted, before: document.beforeInput,
+        swipeReplacement = SwipeReplacement(inserted: inserted, leadingSeparator: separator, before: document.beforeInput,
             after: document.afterInput, choices: choices)
         refresh(); return true
     }
@@ -106,15 +116,19 @@ public final class InputController {
         let inserted = shift == .off ? text : text.uppercased()
         learn(inserted)
         document.insertText(inserted)
+        tappedEndContext = text.last?.isLetter == true
+            ? (document.beforeInput, document.afterInput) : nil
         rememberContext()
         touchBefore = document.beforeInput; touchAfter = document.afterInput
         if shift == .once && text.contains(where: { $0.isLetter }) { shift = .off }
         refresh()
     }
     public func backspace() {
+        tappedEndContext = nil
         resetTouchCalibrationSession(); resetLearningSession()
         if let state = validSwipeReplacement() {
             for _ in state.inserted { document.deleteBackward() }
+            if !state.leadingSeparator.isEmpty { tappedEndContext = (document.beforeInput, document.afterInput) }
         } else { document.deleteBackward() }
         swipeReplacement = nil; refresh()
     }
@@ -157,6 +171,10 @@ public final class InputController {
         }
     }
     public func refresh() {
+        if let context = tappedEndContext,
+           document.beforeInput != context.before || document.afterInput != context.after || document.selection?.isEmpty == false {
+            tappedEndContext = nil
+        }
         validateTouchSession()
         validateLearningContext()
         if let state = validSwipeReplacement() {
@@ -187,7 +205,7 @@ public final class InputController {
     @discardableResult public func accept(_ candidate: String) -> Bool {
         if var state = validSwipeReplacement(), candidates.contains(candidate), candidateService.allowsSuggestion(candidate) {
             for _ in state.inserted { document.deleteBackward() }
-            state.inserted = candidate + (state.inserted.hasSuffix(" ") ? " " : "")
+            state.inserted = state.leadingSeparator + candidate + (state.inserted.hasSuffix(" ") ? " " : "")
             document.insertText(state.inserted)
             state.before = document.beforeInput; state.after = document.afterInput
             swipeReplacement = state; refresh(); return true

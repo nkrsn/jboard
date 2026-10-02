@@ -52,6 +52,11 @@ public struct CandidateService {
         self.learnedPairs = learnedPairs
         self.exclusions = exclusions
     }
+    public func isKnownWord(_ word: String) -> Bool {
+        let query = normalizedWord(word)
+        guard !query.isEmpty else { return false }
+        return lexicons.contains { $0.matches(for: query).contains { normalizedWord($0.word) == query && $0.editCost == 0 } }
+    }
     public func allowsSuggestion(_ word: String) -> Bool { exclusions?.contains(word) != true }
     public func nextWordCandidates(after context: String) -> [String] {
         var seen = Set<String>()

@@ -112,7 +112,7 @@ final class KeyboardViewController: UIInputViewController {
         let generation = swipeGeneration
         let personal = dictionary.words
         let preferred = CandidateService(lexicons: [], nextWords: .bundled, learnedPairs: learnedPairs)
-            .nextWordCandidates(after: context.before ?? "")
+            .nextWordCandidates(after: (context.before ?? "") + (controller.needsSwipeSeparator ? " " : ""))
         keyboard.showSwipeStatus("Reading swipe…")
         swipeQueue.async { [weak self] in
             guard let self else { return }
