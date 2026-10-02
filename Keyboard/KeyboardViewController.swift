@@ -40,13 +40,14 @@ final class KeyboardViewController: UIInputViewController {
         applyBackspaceSettings()
         keyboard.keyPreviewsEnabled = settings.keyPreviewsEnabled
         keyboard.prepareBackspace = { [weak self] in
-            guard let self else { return { false } }
-            let context = self.deletionContext
+            guard let self, let context = self.deletionContext else { return { false } }
             return { [weak self] in self?.deletionContext == context }
         }
         keyboard.onAction = { [weak self] action in self?.handle(action) }
         keyboard.swipeEnabled = settings.swipeEnabled
-        keyboard.canBeginSwipe = { [weak self] in self?.controller.canInsertSwipe == true }
+        keyboard.canBeginSwipe = { [weak self] in
+            self?.currentDocumentID != nil && self?.controller.canInsertSwipe == true
+        }
         keyboard.onSwipeBegan = { [weak self] in
             guard let self else { return }
             self.swipeGeneration += 1; self.swipeStartedGeneration = self.swipeGeneration
@@ -124,8 +125,13 @@ final class KeyboardViewController: UIInputViewController {
             }
         }
     }
-    private var deletionContext: DeletionContext {
-        DeletionContext(documentID: textDocumentProxy.documentIdentifier,
+    private var currentDocumentID: UUID? {
+        guard let proxy = textDocumentProxy as? NSObject else { return nil }
+        return DocumentIdentity.read(from: proxy)
+    }
+    private var deletionContext: DeletionContext? {
+        guard let id = currentDocumentID else { return nil }
+        return DeletionContext(documentID: id,
             before: textDocumentProxy.documentContextBeforeInput,
             after: textDocumentProxy.documentContextAfterInput,
             selection: textDocumentProxy.selectedText)
@@ -142,7 +148,7 @@ final class KeyboardViewController: UIInputViewController {
         render()
     }
     private func refresh() {
-        let id = textDocumentProxy.documentIdentifier
+        let id = currentDocumentID
         if let lastDocumentID, lastDocumentID != id {
             swipeGeneration += 1; keyboard.cancelSwipe(); controller?.clearSwipeReplacement()
         }

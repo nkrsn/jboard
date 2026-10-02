@@ -98,7 +98,7 @@ xcodebuild -project JBoard.xcodeproj -scheme JBoard \
 
 If Terminal selects Command Line Tools, prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. The limited fallback `./Scripts/check-core.sh` runs 18 input/backspace/preference checks; resource-backed integration tests require `swift test`.
 
-Current baseline: **89 core tests pass**. The app and extension build, sign, and install on a physical iPhone 14 using Xcode 27. Tap typing and responsiveness have received physical-phone feedback. Synthetic swipe tests recognize hello, water, working, keyboard, tomorrow, thank, and nitrification, including slightly offset paths; this does not establish real-finger swipe accuracy. Comprehensive visual, accessibility, and device-matrix testing remains outstanding.
+Current baseline: **92 core tests pass**. The app and extension build, sign, and install on a physical iPhone 14 using Xcode 27. Tap typing and responsiveness have received physical-phone feedback. Synthetic swipe tests recognize hello, water, working, keyboard, tomorrow, thank, and nitrification, including slightly offset paths; this does not establish real-finger swipe accuracy. Comprehensive visual, accessibility, and device-matrix testing remains outstanding.
 
 Useful phone checks: type `woeki` and choose `working`; type `aeration basin ` and check learned next-word suggestions; hide and restore a suggestion; move the cursor before choosing a candidate; swipe a word, choose an alternative, and undo it. Check light/dark mode and VoiceOver. iOS may substitute its own keyboard in secure or phone-pad fields, and apps can disallow custom keyboards.
 

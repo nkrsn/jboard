@@ -266,3 +266,15 @@ public struct DeletionContext: Equatable {
         self.documentID = documentID; self.before = before; self.after = after; self.selection = selection
     }
 }
+
+
+/// UIKit can return nil for documentIdentifier before a host field connects,
+/// despite its nonoptional Swift declaration. Read the public Objective-C
+/// property as a nullable object to avoid UUID's unconditional bridge trap.
+public enum DocumentIdentity {
+    public static func read(from object: NSObject) -> UUID? {
+        guard object.responds(to: NSSelectorFromString("documentIdentifier")) else { return nil }
+        guard let identifier = object.value(forKey: "documentIdentifier") as? NSUUID else { return nil }
+        return identifier as UUID
+    }
+}
