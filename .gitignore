@@ -1,0 +1,12 @@
+DerivedData/
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+LocalSigning.xcconfig
+.env
+.env.*
+*.p12
+*.p8
+*.mobileprovision

@@ -1,0 +1,4 @@
+// Optional, ignored local override. See LocalSigning.xcconfig.example.
+JBOARD_DEVELOPMENT_TEAM =
+JBOARD_HOST_BUNDLE_IDENTIFIER = com.example.JBoard
+#include? "LocalSigning.xcconfig"

@@ -1,0 +1,4 @@
+// Copy to LocalSigning.xcconfig and enter your Apple development team ID.
+JBOARD_DEVELOPMENT_TEAM = YOUR_TEAM_ID
+// Optional shared prefix for the host and keyboard extension.
+JBOARD_HOST_BUNDLE_IDENTIFIER = com.yourname.JBoard
