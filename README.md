@@ -32,7 +32,7 @@ Personal Team provisioning can require periodic rebuilding. After changing bundl
 
 ## Using the keyboard
 
-Tap Shift for one capital; hold it for caps lock. **123 / ABC** changes layouts. `. , ? ! ; :` and Return switch back to letters. Apostrophes, hyphens, slashes, numbers, and spaces keep the symbol layout.
+Tap Shift for one capital; hold it for caps lock. Shift also capitalizes the visible suggestions: type or swipe a word, tap Shift, then choose its capitalized suggestion. Hold Shift for ALL CAPS. This also works for next-word predictions; text changes only when you select a suggestion. **123 / ABC** changes layouts. `. , ? ! ; :` and Return switch back to letters. Apostrophes, hyphens, slashes, numbers, and spaces keep the symbol layout.
 
 The candidate bar keeps the typed word first and offers ranked completions/corrections. Choosing a candidate finishes the word and adds a space at the end of the document. Existing following whitespace or punctuation is preserved. Tap typing does not silently autocorrect.
 
@@ -98,7 +98,7 @@ xcodebuild -project JBoard.xcodeproj -scheme JBoard \
 
 If Terminal selects Command Line Tools, prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. The limited fallback `./Scripts/check-core.sh` runs 18 input/backspace/preference checks; resource-backed integration tests require `swift test`.
 
-Current baseline: **108 core tests pass**. The app and extension build, sign, and install on a physical iPhone 14 using Xcode 27. Tap typing and responsiveness have received physical-phone feedback. Synthetic swipe tests recognize hello, water, working, keyboard, tomorrow, thank, and nitrification, including slightly offset paths; this does not establish real-finger swipe accuracy. Comprehensive visual, accessibility, and device-matrix testing remains outstanding.
+Current baseline: **114 core tests pass**. The app and extension build, sign, and install on a physical iPhone 14 using Xcode 27. Tap typing and responsiveness have received physical-phone feedback. Synthetic swipe tests recognize hello, water, working, keyboard, tomorrow, thank, and nitrification, including slightly offset paths; this does not establish real-finger swipe accuracy. Comprehensive visual, accessibility, and device-matrix testing remains outstanding.
 
 Useful phone checks: type `woeki` and choose `working`; type `aeration basin ` and check learned next-word suggestions; hide and restore a suggestion; move the cursor before choosing a candidate; swipe a word, choose an alternative, and undo it. Check light/dark mode and VoiceOver. iOS may substitute its own keyboard in secure or phone-pad fields, and apps can disallow custom keyboards.
 

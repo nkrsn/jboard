@@ -38,6 +38,57 @@ final class InputControllerTests: XCTestCase {
             candidates: CandidateService(lexicons: [FrequencyLexicon(entries: ["hello": 2_000, "help": 3_000]), dictionary]), settings: settings)
     }
     override func tearDown() { defaults.removePersistentDomain(forName: suite) }
+    func testShiftRecasesTypedSuggestionsWithoutEditingText() {
+        engine.type("hel")
+        engine.toggleShift()
+        XCTAssertEqual(engine.candidates, ["Hel", "Help", "Hello"])
+        XCTAssertEqual(doc.text, "hel")
+        engine.toggleShift()
+        XCTAssertEqual(engine.candidates, ["hel", "help", "hello"])
+        engine.toggleShift()
+        XCTAssertTrue(engine.accept("Hello"))
+        XCTAssertEqual(doc.text, "Hello ")
+        XCTAssertEqual(engine.shift, .off)
+    }
+    func testCapitalizeLiteralAndPreservePunctuation() {
+        doc.text = "say zorb"; doc.after = "!"; engine.refresh()
+        engine.toggleShift()
+        XCTAssertTrue(engine.accept("Zorb"))
+        XCTAssertEqual(doc.text, "say Zorb")
+        XCTAssertEqual(doc.after, "!")
+    }
+    func testCapsLockRecasesSuggestionsAndStaysLocked() {
+        engine.type("hel"); engine.lockShift()
+        XCTAssertEqual(engine.candidates, ["HEL", "HELP", "HELLO"])
+        XCTAssertTrue(engine.accept("HELP"))
+        XCTAssertEqual(doc.text, "HELP ")
+        XCTAssertEqual(engine.shift, .locked)
+    }
+    func testShiftRecasesSwipeAlternativesAndKeepsUndo() {
+        XCTAssertTrue(engine.insertSwipe(["hello", "help"]))
+        engine.toggleShift()
+        XCTAssertEqual(engine.candidates, ["Hello", "Help"])
+        XCTAssertEqual(doc.text, "hello ")
+        engine.toggleShift()
+        XCTAssertEqual(engine.candidates, ["hello", "help"])
+        engine.toggleShift()
+        XCTAssertTrue(engine.accept("Hello"))
+        XCTAssertEqual(doc.text, "Hello ")
+        XCTAssertEqual(engine.shift, .off)
+        XCTAssertEqual(engine.candidates, ["Hello", "Help"])
+        XCTAssertTrue(engine.accept("Help"))
+        XCTAssertEqual(doc.text, "Help ")
+        engine.backspace()
+        XCTAssertEqual(doc.text, "")
+    }
+    func testShiftRespectsDisabledCandidatesAndStaleContext() {
+        engine.type("hel"); engine.toggleShift(); doc.text = "other"
+        XCTAssertFalse(engine.accept("Hello"))
+        XCTAssertEqual(doc.text, "other")
+        settings.candidatesEnabled = false
+        engine.lockShift()
+        XCTAssertTrue(engine.candidates.isEmpty)
+    }
     func testTapShiftSpaceReturnAndBackspace() {
         engine.toggleShift(); engine.type("h"); engine.type("i"); engine.type(" ")
         engine.type("1"); engine.type("\n")

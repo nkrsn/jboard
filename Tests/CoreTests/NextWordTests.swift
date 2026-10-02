@@ -26,6 +26,14 @@ final class NextWordTests: XCTestCase {
             XCTAssertTrue(predictor.suggestions(after: text).isEmpty, text)
         }
     }
+    func testShiftCapitalizesNextWordPredictions() {
+        doc.text = "thank "; engine.refresh(); engine.toggleShift()
+        XCTAssertEqual(engine.candidates, ["You"])
+        XCTAssertTrue(engine.accept("You"))
+        XCTAssertEqual(doc.text, "thank You ")
+        XCTAssertEqual(engine.shift, .off)
+        XCTAssertEqual(engine.candidates, ["can", "are", "have"])
+    }
     func testPredictionAppendsWithoutDeletingAndChains() {
         doc.text = "I thank "; engine.refresh()
         XCTAssertEqual(engine.candidates, ["you"])

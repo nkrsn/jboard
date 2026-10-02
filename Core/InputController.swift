@@ -102,8 +102,17 @@ public final class InputController {
         self.learnedPairs = learnedPairs
         self.touchCalibration = touchCalibration
     }
-    public func toggleShift() { shift = shift == .off ? .once : .off }
-    public func lockShift() { shift = shift == .locked ? .off : .locked }
+    public func toggleShift() { shift = shift == .off ? .once : .off; refresh() }
+    public func lockShift() { shift = shift == .locked ? .off : .locked; refresh() }
+    private func shiftAdjusted(_ words: [String]) -> [String] {
+        words.map { word in
+            switch shift {
+            case .off: return word
+            case .once: return word.prefix(1).uppercased() + word.dropFirst()
+            case .locked: return word.uppercased()
+            }
+        }
+    }
     public func resetTouchCalibrationSession() {
         touchWord = ""; wordTouches = []; touchBefore = nil; touchAfter = nil
     }
@@ -195,7 +204,7 @@ public final class InputController {
         validateTouchSession()
         validateLearningContext()
         if let state = validSwipeReplacement() {
-            candidates = settings.candidatesEnabled ? state.choices.filter(candidateService.allowsSuggestion) : []
+            candidates = settings.candidatesEnabled ? shiftAdjusted(state.choices.filter(candidateService.allowsSuggestion)) : []
             nextLetterWeights = [:]
             return
         }
@@ -215,9 +224,9 @@ public final class InputController {
             nextLetterWeights = candidateService.nextLetterWeights(for: snapshotWord)
         }
         guard settings.candidatesEnabled else { candidates = []; return }
-        candidates = snapshotWord.isEmpty
+        candidates = shiftAdjusted(snapshotWord.isEmpty
             ? candidateService.nextWordCandidates(after: snapshotBefore ?? "")
-            : candidateService.candidates(for: snapshotWord)
+            : candidateService.candidates(for: snapshotWord))
     }
     @discardableResult public func accept(_ candidate: String) -> Bool {
         if var state = validSwipeReplacement(), candidates.contains(candidate), candidateService.allowsSuggestion(candidate) {
@@ -225,6 +234,9 @@ public final class InputController {
             state.inserted = state.leadingSeparator + candidate + (state.inserted.hasSuffix(" ") ? " " : "")
             document.insertText(state.inserted)
             state.before = document.beforeInput; state.after = document.afterInput
+            // Keep the accepted capitalization on the remaining swipe alternatives.
+            state.choices = shiftAdjusted(state.choices)
+            if shift == .once { shift = .off }
             swipeReplacement = state; refresh(); return true
         }
         if swipeReplacement != nil { swipeReplacement = nil; refresh(); return false }
