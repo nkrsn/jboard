@@ -98,13 +98,13 @@ xcodebuild -project JBoard.xcodeproj -scheme JBoard \
 
 If Terminal selects Command Line Tools, prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. The limited fallback `./Scripts/check-core.sh` runs 18 input/backspace/preference checks; resource-backed integration tests require `swift test`.
 
-Current baseline: **98 core tests pass**. The app and extension build, sign, and install on a physical iPhone 14 using Xcode 27. Tap typing and responsiveness have received physical-phone feedback. Synthetic swipe tests recognize hello, water, working, keyboard, tomorrow, thank, and nitrification, including slightly offset paths; this does not establish real-finger swipe accuracy. Comprehensive visual, accessibility, and device-matrix testing remains outstanding.
+Current baseline: **108 core tests pass**. The app and extension build, sign, and install on a physical iPhone 14 using Xcode 27. Tap typing and responsiveness have received physical-phone feedback. Synthetic swipe tests recognize hello, water, working, keyboard, tomorrow, thank, and nitrification, including slightly offset paths; this does not establish real-finger swipe accuracy. Comprehensive visual, accessibility, and device-matrix testing remains outstanding.
 
 Useful phone checks: type `woeki` and choose `working`; type `aeration basin ` and check learned next-word suggestions; hide and restore a suggestion; move the cursor before choosing a candidate; swipe a word, choose an alternative, and undo it. Check light/dark mode and VoiceOver. iOS may substitute its own keyboard in secure or phone-pad fields, and apps can disallow custom keyboards.
 
 ## Limitations
 
-English only. The dictionary and word-pair data are not a sentence-level language model. Typo repair supports one edit; multi-error input needs further work. Swipe recognition is an initial shape matcher. No automatic sentence capitalization, cursor dragging, held-delete repeat, keyboard-type-specific layouts, or production app icon yet. Return inserts a newline; the host app decides how to interpret it. iOS can limit document context, which constrains prediction and replacement.
+English only. The dictionary and word-pair data are not a sentence-level language model. Typo repair supports one edit; multi-error input needs further work. Swipe recognition is an initial shape matcher. No automatic sentence capitalization, held-delete repeat, keyboard-type-specific layouts, or production app icon yet. Return inserts a newline; the host app decides how to interpret it. iOS can limit document context, which constrains prediction and replacement.
 
 ## License and dictionary attribution
 
@@ -115,3 +115,10 @@ The English dictionary and word pairs derive from [Wolf Garbe’s SymSpell](http
 ## Contributing
 
 Bug reports should include the iPhone/iOS version, the relevant keyboard settings, and a short reproducible typing sequence using non-sensitive example text. For swipe problems, report the intended word and the alternatives shown. Run `swift test` and an unsigned iOS build before proposing code changes. Do not commit local signing files, profiles, keys, or personal typing history.
+
+
+## Spacebar trackpad
+
+Tap Space normally to insert a space. Hold it for 300 ms, or drag at least 12 points from it, to turn the keyboard into a cursor pad. Continue dragging anywhere over the keys; release to return to typing. Left/right moves by characters. Up/down moves between explicit newline-separated lines while preserving the character column where possible; **it cannot follow visual line wrapping**, because the custom-keyboard proxy exposes character offsets, not the host's text layout. Movement is limited by the context the host supplies. Selection extension is not implemented. This feature is on by default under **Spacebar trackpad** and is disabled during VoiceOver navigation. Cursor gestures do not insert text, train predictions, or persist touch history.
+
+The supported movement API is Apple's [adjustTextPosition(byCharacterOffset:)](https://developer.apple.com/documentation/uikit/uitextdocumentproxy/adjusttextposition(bycharacteroffset:)). Device testing across host apps remains necessary, especially for rich-text or web editors.

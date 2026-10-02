@@ -6,6 +6,7 @@ final class KeyboardViewController: UIInputViewController {
     private var swipeDecoder: LocalSwipeDecoder?
     private var swipeGeneration = 0
     private var swipeStartedGeneration: Int?
+    private var cursorPadDocumentID: UUID?
     private var lastDocumentID: UUID?
     private var swipeContext: DeletionContext?
     private let touchCalibration = TouchCalibration()
@@ -42,6 +43,23 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.prepareBackspace = { [weak self] in
             guard let self, let context = self.deletionContext else { return { false } }
             return { [weak self] in self?.deletionContext == context }
+        }
+        keyboard.cursorPadEnabled = settings.cursorPadEnabled
+        keyboard.canBeginCursorPad = { [weak self] in
+            guard let self else { return false }
+            return self.currentDocumentID != nil && self.textDocumentProxy.selectedText?.isEmpty != false
+        }
+        keyboard.onCursorPadBegan = { [weak self] in
+            guard let self else { return }
+            self.swipeGeneration += 1; self.cursorPadDocumentID = self.currentDocumentID
+            self.controller.beginCursorControl()
+        }
+        keyboard.onCursorMove = { [weak self] characters, lines in
+            guard let self, let id = self.cursorPadDocumentID, self.currentDocumentID == id else { return }
+            self.controller.moveCursor(characters: characters, lines: lines)
+        }
+        keyboard.onCursorPadEnded = { [weak self] in
+            self?.cursorPadDocumentID = nil; self?.refresh()
         }
         keyboard.onAction = { [weak self] action in self?.handle(action) }
         keyboard.swipeEnabled = settings.swipeEnabled
@@ -88,7 +106,7 @@ final class KeyboardViewController: UIInputViewController {
     }
     override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); refresh() }
     override func viewWillDisappear(_ animated: Bool) {
-        swipeGeneration += 1; keyboard.cancelSwipe(); controller?.clearSwipeReplacement()
+        swipeGeneration += 1; keyboard.cancelCursorPad(); keyboard.cancelSwipe(); controller?.clearSwipeReplacement()
         keyboard.cancelPendingBackspace()
         keyboard.dismissKeyPreview()
         controller?.resetTouchCalibrationSession()
@@ -150,7 +168,7 @@ final class KeyboardViewController: UIInputViewController {
     private func refresh() {
         let id = currentDocumentID
         if let lastDocumentID, lastDocumentID != id {
-            swipeGeneration += 1; keyboard.cancelSwipe(); controller?.clearSwipeReplacement()
+            swipeGeneration += 1; keyboard.cancelCursorPad(); keyboard.cancelSwipe(); controller?.clearSwipeReplacement()
         }
         lastDocumentID = id
         controller?.refresh(); render()
@@ -167,6 +185,7 @@ final class KeyboardViewController: UIInputViewController {
     }
     private func showSettings() {
         guard settingsPanel == nil else { return }
+        keyboard.cancelCursorPad()
         keyboard.cancelPendingBackspace()
         keyboard.dismissKeyPreview()
         let panel = UIView(); panel.backgroundColor = .systemGroupedBackground
@@ -272,12 +291,20 @@ final class KeyboardViewController: UIInputViewController {
             self.swipeGeneration += 1; self.keyboard.swipeEnabled = self.settings.swipeEnabled
             self.keyboard.cancelSwipe(); self.controller.clearSwipeReplacement(); self.refresh()
         }, for: .valueChanged)
+        let cursorToggle = UISwitch(); cursorToggle.isOn = settings.cursorPadEnabled
+        let cursorLabel = UILabel(); cursorLabel.text = "Spacebar trackpad"
+        let cursorRow = UIStackView(arrangedSubviews: [cursorLabel, cursorToggle]); cursorRow.spacing = 10
+        cursorToggle.addAction(UIAction { [weak self, weak cursorToggle] _ in
+            guard let self else { return }
+            self.settings.cursorPadEnabled = cursorToggle?.isOn ?? true
+            self.keyboard.cursorPadEnabled = self.settings.cursorPadEnabled
+        }, for: .valueChanged)
         let dictionaryStatus = UILabel()
         dictionaryStatus.text = lexicon.isFallback ? "Dictionary unavailable — using fallback words" : "English dictionary: \(lexicon.count.formatted()) words · offline"
         dictionaryStatus.font = .systemFont(ofSize: 12)
         dictionaryStatus.textColor = .secondaryLabel
         dictionaryStatus.numberOfLines = 0
-        let stack = UIStackView(arrangedSubviews: [guardRow, delayRow, swipeRow, previewsRow, targetsRow, calibrationRow, resetCalibration, option, learningRow, clearLearning, restoreSuggestions, dictionaryStatus, save, clear])
+        let stack = UIStackView(arrangedSubviews: [guardRow, delayRow, swipeRow, cursorRow, previewsRow, targetsRow, calibrationRow, resetCalibration, option, learningRow, clearLearning, restoreSuggestions, dictionaryStatus, save, clear])
         stack.axis = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false
         panel.addSubview(header); panel.addSubview(scroll); scroll.addSubview(stack)
         NSLayoutConstraint.activate([

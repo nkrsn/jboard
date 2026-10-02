@@ -7,6 +7,7 @@ public protocol TextDocument: AnyObject {
     var selection: String? { get }
     func insertText(_ text: String)
     func deleteBackward()
+    func moveCursor(byUTF16Offset offset: Int)
 }
 
 public enum ShiftState { case off, once, locked }
@@ -15,6 +16,22 @@ public final class InputController {
     public private(set) var shift: ShiftState = .off
     public private(set) var nextLetterWeights: [String: Double] = [:]
     public private(set) var candidates: [String] = []
+    private var cursorNavigator = CursorNavigator()
+    public func beginCursorControl() {
+        clearSwipeReplacement(); resetLearningSession(); resetTouchCalibrationSession()
+        cursorNavigator.reset(); candidates = []; nextLetterWeights = [:]
+    }
+    public func moveCursor(characters: Int, lines: Int) {
+        guard document.selection?.isEmpty != false, let before = document.beforeInput else { return }
+        let after = document.afterInput ?? ""
+        let offset = lines != 0
+            ? cursorNavigator.verticalOffset(lines, before: before, after: after)
+            : cursorNavigator.horizontalOffset(characters, before: before, after: after)
+        guard offset != 0 else { return }
+        clearSwipeReplacement(); resetLearningSession(); resetTouchCalibrationSession()
+        document.moveCursor(byUTF16Offset: offset)
+        candidates = []; nextLetterWeights = [:]
+    }
     private let touchCalibration: TouchCalibration?
     private var touchWord = ""
     private var wordTouches: [LetterTouch] = []

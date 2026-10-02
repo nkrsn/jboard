@@ -13,6 +13,12 @@ final class MockDocument: TextDocument {
     var beforeInput: String? { contextAvailable ? text : nil }
     var afterInput: String? { contextAvailable && trailingContextAvailable ? after : nil }
     func insertText(_ input: String) { text += input; selection = nil }
+    func moveCursor(byUTF16Offset offset: Int) {
+        let combined = text + after
+        let position = min(combined.utf16.count, max(0, text.utf16.count + offset))
+        let index = String.Index(utf16Offset: position, in: combined)
+        text = String(combined[..<index]); after = String(combined[index...])
+    }
     func deleteBackward() { if !text.isEmpty { text.removeLast() } }
 }
 

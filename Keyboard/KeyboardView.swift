@@ -146,7 +146,92 @@ private final class LetterSwipeGesture: UIGestureRecognizer {
     override func reset() { super.reset(); samples = [] }
 }
 
+/// A tap remains a space. A 300ms hold or 12-point drag captures the gesture
+/// for cursor movement, even after the finger leaves the spacebar.
+private final class CursorPadGesture: UIGestureRecognizer {
+    private(set) var origin = CGPoint.zero
+    private(set) var location = CGPoint.zero
+    private var timer: Timer?
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard touches.count == 1, numberOfTouches <= 1, let touch = touches.first else {
+            state = state == .possible ? .failed : .cancelled; return
+        }
+        origin = touch.location(in: view); location = origin
+        let timer = Timer(timeInterval: 0.3, repeats: false) { [weak self] _ in
+            guard let self, self.state == .possible else { return }
+            self.state = .began
+        }
+        self.timer = timer; RunLoop.main.add(timer, forMode: .common)
+    }
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let touch = touches.first else { return }
+        location = touch.location(in: view)
+        if state == .possible {
+            if hypot(location.x - origin.x, location.y - origin.y) >= 12 {
+                timer?.invalidate(); state = .began
+            }
+        } else { state = .changed }
+    }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        timer?.invalidate()
+        if let touch = touches.first { location = touch.location(in: view) }
+        state = state == .possible ? .failed : .ended
+    }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        timer?.invalidate(); state = .cancelled
+    }
+    override func reset() { timer?.invalidate(); timer = nil; super.reset() }
+    deinit { timer?.invalidate() }
+}
+
 final class KeyboardView: UIView, UIGestureRecognizerDelegate {
+    var canBeginCursorPad: (() -> Bool)?
+    var onCursorPadBegan: (() -> Void)?
+    var onCursorMove: ((Int, Int) -> Void)?
+    var onCursorPadEnded: (() -> Void)?
+    var cursorPadEnabled = true { didSet { cursorGesture.isEnabled = cursorPadEnabled } }
+    private var spaceButton: UIButton?
+    private var cursorPadActive = false
+    private var cursorMotion = CursorMotion()
+    private var lastCursorPoint = CGPoint.zero
+    private let cursorOverlay = UILabel()
+    private lazy var cursorGesture: CursorPadGesture = {
+        let gesture = CursorPadGesture(target: self, action: #selector(handleCursorPad(_:)))
+        gesture.delegate = self; gesture.cancelsTouchesInView = true
+        gesture.delaysTouchesBegan = false; gesture.delaysTouchesEnded = false
+        return gesture
+    }()
+    func cancelCursorPad() {
+        cursorGesture.isEnabled = false; cursorGesture.isEnabled = cursorPadEnabled
+        finishCursorPad()
+    }
+    private func finishCursorPad() {
+        guard cursorPadActive else { return }
+        cursorPadActive = false; cursorOverlay.isHidden = true; rows.alpha = 1
+        cursorMotion.reset(); onCursorPadEnded?()
+    }
+    private func moveCursorPad(to point: CGPoint) {
+        let movement = cursorMotion.consume(dx: point.x - lastCursorPoint.x, dy: point.y - lastCursorPoint.y)
+        lastCursorPoint = point
+        if movement.characters != 0 || movement.lines != 0 { onCursorMove?(movement.characters, movement.lines) }
+    }
+    @objc private func handleCursorPad(_ gesture: CursorPadGesture) {
+        switch gesture.state {
+        case .began:
+            cursorPadActive = true; cursorMotion.reset(); lastCursorPoint = gesture.origin
+            cancelSwipe(); cancelPendingBackspace(); dismissKeyPreview()
+            rows.alpha = 0.2
+            cursorOverlay.frame = rows.convert(rows.bounds, to: self)
+            cursorOverlay.isHidden = false; bringSubviewToFront(cursorOverlay)
+            showSwipeStatus("Cursor control · release to type")
+            onCursorPadBegan?(); moveCursorPad(to: gesture.location)
+        case .changed: moveCursorPad(to: gesture.location)
+        case .ended:
+            moveCursorPad(to: gesture.location); finishCursorPad()
+        case .cancelled, .failed: finishCursorPad()
+        default: break
+        }
+    }
     var canBeginSwipe: (() -> Bool)?
     var onSwipeBegan: (() -> Void)?
     var onSwipe: (([SwipeSample], [SwipeKey]) -> Void)?
@@ -163,7 +248,11 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
         swipeTrail.path = nil
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard swipeEnabled, !symbols, !UIAccessibility.isVoiceOverRunning, canBeginSwipe?() == true else { return false }
+        if gestureRecognizer === cursorGesture {
+            return cursorPadEnabled && !UIAccessibility.isVoiceOverRunning &&
+                touch.view === spaceButton && canBeginCursorPad?() == true
+        }
+        guard !cursorPadActive, swipeEnabled, !symbols, !UIAccessibility.isVoiceOverRunning, canBeginSwipe?() == true else { return false }
         return (touch.view as? KeyButton)?.letter != nil
     }
     @objc private func handleSwipe(_ gesture: LetterSwipeGesture) {
@@ -260,7 +349,7 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
     }
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        if window == nil { dismissKeyPreview(); cancelSwipe() }
+        if window == nil { dismissKeyPreview(); cancelSwipe(); cancelCursorPad() }
     }
     private var deleteButton: BackspaceButton?
     var backspaceGuardEnabled = true { didSet { configureBackspace() } }
@@ -325,6 +414,15 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
         keyPreview.isAccessibilityElement = false
         keyPreview.isHidden = true
         addSubview(keyPreview)
+        cursorOverlay.text = "←  Cursor  →\n↑ Previous line · Next line ↓"
+        cursorOverlay.numberOfLines = 2; cursorOverlay.textAlignment = .center
+        cursorOverlay.font = .systemFont(ofSize: 17, weight: .medium)
+        cursorOverlay.textColor = .secondaryLabel
+        cursorOverlay.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.85)
+        cursorOverlay.layer.cornerRadius = 8; cursorOverlay.clipsToBounds = true
+        cursorOverlay.isUserInteractionEnabled = false; cursorOverlay.isAccessibilityElement = false
+        cursorOverlay.isHidden = true; addSubview(cursorOverlay)
+        addGestureRecognizer(cursorGesture)
         addGestureRecognizer(swipeGesture)
         swipeTrail.strokeColor = UIColor.systemBlue.withAlphaComponent(0.65).cgColor
         swipeTrail.fillColor = UIColor.clear.cgColor; swipeTrail.lineWidth = 3
@@ -401,6 +499,7 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
         }
     }
     private func buildRows() {
+        cancelCursorPad()
         cancelSwipe()
         dismissKeyPreview()
         cancelPendingBackspace()
@@ -418,6 +517,8 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
         let mode = key(symbols ? "ABC" : "123", action: .symbols, special: true, label: "Letters or numbers and punctuation")
         mode.titleLabel?.font = .systemFont(ofSize: 15)
         let space = key("space", action: .text(" "), label: "Space")
+        spaceButton = space
+        space.accessibilityHint = "Tap for space. Hold or drag to move the cursor."
         space.titleLabel?.font = .systemFont(ofSize: 17)
         let enter = key("return", action: .text("\n"), special: true, label: "Return")
         enter.titleLabel?.font = .systemFont(ofSize: 15)
@@ -431,7 +532,7 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
     }
     override func layoutSubviews() {
         super.layoutSubviews()
-        if lastLayoutSize != bounds.size { dismissKeyPreview(); cancelSwipe(); onGeometryChanged?(); lastLayoutSize = bounds.size }
+        if lastLayoutSize != bounds.size { dismissKeyPreview(); cancelSwipe(); cancelCursorPad(); onGeometryChanged?(); lastLayoutSize = bounds.size }
         swipeGesture.threshold = max(24, (letterKeys.first?.0.bounds.width ?? 35) * 0.75)
         // Resolve nested stacks before assigning gap-free touch cells.
         rows.layoutIfNeeded()
@@ -477,6 +578,7 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if cursorPadActive && bounds.contains(point) { return self }
         let original = super.hitTest(point, with: event)
         guard isUserInteractionEnabled, !isHidden, alpha > 0.01,
               rows.bounds.contains(rows.convert(point, from: self)) else { return original }
@@ -512,6 +614,7 @@ final class KeyboardView: UIView, UIGestureRecognizerDelegate {
         shiftButton?.setTitle(shift == .locked ? "⇪" : "⇧", for: .normal)
         shiftButton?.backgroundColor = shift == .off ? .systemGray3 : .systemBlue
         shiftButton?.accessibilityValue = shift == .locked ? "Caps lock" : shift == .once ? "On" : "Off"
+        if cursorPadActive { showSwipeStatus("Cursor control · release to type"); return }
         candidateRow.arrangedSubviews.forEach { candidateRow.removeArrangedSubview($0); $0.removeFromSuperview() }
         if candidates.isEmpty {
             let label = UILabel(); label.text = "JBoard · on device"; label.textAlignment = .center

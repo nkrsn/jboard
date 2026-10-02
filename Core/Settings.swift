@@ -4,6 +4,10 @@ import Foundation
 public final class KeyboardSettings {
     private let defaults: UserDefaults
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    public var cursorPadEnabled: Bool {
+        get { defaults.object(forKey: "cursorPadEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "cursorPadEnabled") }
+    }
     public var swipeEnabled: Bool {
         get { defaults.object(forKey: "swipeEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "swipeEnabled") }

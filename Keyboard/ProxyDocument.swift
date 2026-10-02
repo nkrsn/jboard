@@ -7,5 +7,6 @@ final class ProxyDocument: TextDocument {
     var afterInput: String? { proxy().documentContextAfterInput }
     var selection: String? { proxy().selectedText }
     func insertText(_ text: String) { proxy().insertText(text) }
+    func moveCursor(byUTF16Offset offset: Int) { proxy().adjustTextPosition(byCharacterOffset: offset) }
     func deleteBackward() { proxy().deleteBackward() }
 }
